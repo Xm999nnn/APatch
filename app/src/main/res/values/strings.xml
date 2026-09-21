@@ -34,21 +34,6 @@
     <string name="settings_global_namespace_mode_summary">All root sessions use the global mount namespace</string>
     <string name="settings_sucompat">Legacy su compatibility</string>
     <string name="settings_sucompat_summary">"Enable legacy su compatibility (for when su doesn't work)"</string>
-    <string name="settings_selinux_hide">Hide SELinux modification (Test)</string>
-    <string name="settings_selinux_hide_summary">"Hide SELinux changes from being detected by user processes (this feature may be unstable). Safe mode disables this feature."</string>
-    <string name="settings_selinux_hide_warning_title">Warning</string>
-    <string name="settings_selinux_hide_warning_below_5_10">"This feature is only tested on kernel 5.10 and above and may be unstable on lower kernel versions."</string>
-    <string name="settings_selinux_hide_warning_non_gki">"Non-GKI kernels carry a higher risk and may cause boot failure. Make sure your data is backed up."</string>
-    <string name="settings_jailbreak_mode">Jailbreak mode</string>
-    <string name="settings_jailbreak_mode_summary">"Load the KernelPatch module on a stock kernel. Patching is not allowed in this mode."</string>
-    <string name="settings_jailbreak_soft_reboot">Soft reboot</string>
-    <string name="settings_jailbreak_soft_reboot_message">"The module has been loaded. Restart the framework now?"</string>
-    <string name="settings_jailbreak_loaded">Jailbreak module loaded</string>
-    <string name="settings_jailbreak_failed">Failed to load jailbreak module</string>
-    <string name="jailbreak_no_patch">Patching is not allowed in jailbreak mode.</string>
-    <string name="jailbreak">Jailbreak</string>
-    <string name="jailbreak_triggered">Jailbreak triggered. Wait for root, then soft reboot.</string>
-    <string name="reboot_soft">Soft reboot</string>
     <string name="settings_clear_super_key_dialog">Do you really want to proceed?</string>
 
     <string name="settings_check_update">Check for updates</string>
@@ -131,6 +116,13 @@
     <string name="home_selinux_status_enforcing">Enforcing</string>
     <string name="home_selinux_status_permissive">Permissive</string>
     <string name="home_selinux_status_unknown">Unknown</string>
+
+    <string name="selinux_permissive_dialog_title">SELinux is permissive</string>
+    <string name="selinux_permissive_dialog_message">SELinux is currently in permissive mode, which weakens system security. Switch to enforcing mode now? (Takes effect immediately, restored on reboot.)</string>
+    <string name="selinux_set_enforcing">Set enforcing</string>
+
+    <string name="settings_disable_screenshot">Disable screenshots</string>
+    <string name="settings_disable_screenshot_summary">Prevent this app\'s screens from being captured or shown in the recents overview</string>
 
     <string name="home_device_info">Device</string>
     <string name="home_system_version">System version</string>

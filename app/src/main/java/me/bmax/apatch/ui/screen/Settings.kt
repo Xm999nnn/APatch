@@ -36,8 +36,8 @@ import androidx.compose.material.icons.filled.Engineering
 import androidx.compose.material.icons.automirrored.filled.FeaturedPlayList
 import androidx.compose.material.icons.filled.FormatColorFill
 import androidx.compose.material.icons.filled.InvertColors
+import androidx.compose.material.icons.filled.NoPhotography
 import androidx.compose.material.icons.filled.Save
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Update
@@ -93,8 +93,6 @@ import me.bmax.apatch.ui.component.SwitchItem
 import me.bmax.apatch.ui.component.rememberLoadingDialog
 import me.bmax.apatch.ui.theme.refreshTheme
 import me.bmax.apatch.util.getBugreportFile
-import me.bmax.apatch.util.getKernelVersionCode
-import me.bmax.apatch.util.isGkiKernel
 import me.bmax.apatch.util.isGlobalNamespaceEnabled
 import me.bmax.apatch.util.outputStream
 import me.bmax.apatch.util.rootShellForResult
@@ -241,63 +239,6 @@ fun SettingScreen() {
                     })
             }
 
-            // Hide SELinux modification (test)
-            if (kPatchReady && aPatchReady) {
-                val kernelVersion = remember { getKernelVersionCode() }
-                val kernelSupported = (kernelVersion ?: 0) >= 419
-                val isGki = remember { isGkiKernel() }
-                var selinuxHideEnabled by rememberSaveable {
-                    mutableStateOf(prefs.getBoolean("selinux_hide_enabled", false))
-                }
-                val showSelinuxHideWarning = remember { mutableStateOf(false) }
-
-                fun applySelinuxHide(enabled: Boolean) {
-                    scope.launch(Dispatchers.IO) {
-                        val command = if (enabled) {
-                            "touch ${APApplication.SELINUX_HIDE_FILE}"
-                        } else {
-                            "rm -f ${APApplication.SELINUX_HIDE_FILE}"
-                        }
-                        val result = rootShellForResult(command)
-                        Log.d("SelinuxHideToggle", "$command result: ${result.code}")
-                        if (result.isSuccess) {
-                            prefs.edit { putBoolean("selinux_hide_enabled", enabled) }
-                            selinuxHideEnabled = enabled
-                        }
-                    }
-                }
-
-                SwitchItem(
-                    icon = Icons.Filled.Security,
-                    title = stringResource(id = R.string.settings_selinux_hide),
-                    summary = stringResource(id = R.string.settings_selinux_hide_summary),
-                    checked = selinuxHideEnabled,
-                    enabled = kernelSupported,
-                    onCheckedChange = { enabled ->
-                        if (enabled) {
-                            // Only tested on 5.10+, and non-GKI carries a bigger risk, so warn first.
-                            val below510 = (kernelVersion ?: 0) < 510
-                            if (below510 || !isGki) {
-                                showSelinuxHideWarning.value = true
-                            } else {
-                                applySelinuxHide(true)
-                            }
-                        } else {
-                            applySelinuxHide(false)
-                        }
-                    }
-                )
-
-                if (showSelinuxHideWarning.value) {
-                    SelinuxHideWarningDialog(
-                        showDialog = showSelinuxHideWarning,
-                        kernelVersion = kernelVersion,
-                        isGki = isGki,
-                        onConfirm = { applySelinuxHide(true) },
-                    )
-                }
-            }
-
             // WebView Debug
             if (aPatchReady) {
                 var enableWebDebugging by rememberSaveable {
@@ -316,6 +257,24 @@ fun SettingScreen() {
                     }
                     enableWebDebugging = it
                 }
+            }
+
+            // Disable screenshots (FLAG_SECURE, applied globally in APApplication)
+            var disableScreenshot by rememberSaveable {
+                mutableStateOf(
+                    prefs.getBoolean(APApplication.PREF_DISABLE_SCREENSHOT, false)
+                )
+            }
+            SwitchItem(
+                icon = Icons.Filled.NoPhotography,
+                title = stringResource(id = R.string.settings_disable_screenshot),
+                summary = stringResource(id = R.string.settings_disable_screenshot_summary),
+                checked = disableScreenshot
+            ) {
+                APApplication.sharedPreferences.edit {
+                    putBoolean(APApplication.PREF_DISABLE_SCREENSHOT, it)
+                }
+                disableScreenshot = it
             }
 
             // Check Update
@@ -696,85 +655,6 @@ fun ResetSUPathDialog(showDialog: MutableState<Boolean>) {
                             Toast.LENGTH_SHORT
                         ).show()
                         rootShellForResult("echo $suPath > ${APApplication.SU_PATH_FILE}")
-                    }) {
-                        Text(stringResource(id = android.R.string.ok))
-                    }
-                }
-            }
-            val dialogWindowProvider = LocalView.current.parent as DialogWindowProvider
-            APDialogBlurBehindUtils.setupWindowBlurListener(dialogWindowProvider.window)
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun SelinuxHideWarningDialog(
-    showDialog: MutableState<Boolean>,
-    kernelVersion: Int?,
-    isGki: Boolean,
-    onConfirm: () -> Unit,
-) {
-    BasicAlertDialog(
-        onDismissRequest = { showDialog.value = false }, properties = DialogProperties(
-            decorFitsSystemWindows = true,
-            usePlatformDefaultWidth = false,
-        )
-    ) {
-        Surface(
-            modifier = Modifier
-                .width(310.dp)
-                .wrapContentHeight(),
-            shape = RoundedCornerShape(30.dp),
-            tonalElevation = AlertDialogDefaults.TonalElevation,
-            color = AlertDialogDefaults.containerColor,
-        ) {
-            Column(modifier = Modifier.padding(PaddingValues(all = 24.dp))) {
-                Box(
-                    Modifier
-                        .padding(PaddingValues(bottom = 16.dp))
-                        .align(Alignment.Start)
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.settings_selinux_hide_warning_title),
-                        style = MaterialTheme.typography.headlineSmall
-                    )
-                }
-                if ((kernelVersion ?: 0) < 510) {
-                    Box(
-                        Modifier
-                            .padding(PaddingValues(bottom = 8.dp))
-                            .align(Alignment.Start)
-                    ) {
-                        Text(
-                            text = stringResource(id = R.string.settings_selinux_hide_warning_below_5_10),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
-                if (!isGki) {
-                    Box(
-                        Modifier
-                            .padding(PaddingValues(bottom = 16.dp))
-                            .align(Alignment.Start)
-                    ) {
-                        Text(
-                            text = stringResource(id = R.string.settings_selinux_hide_warning_non_gki),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = { showDialog.value = false }) {
-                        Text(stringResource(id = android.R.string.cancel))
-                    }
-
-                    Button(onClick = {
-                        showDialog.value = false
-                        onConfirm()
                     }) {
                         Text(stringResource(id = android.R.string.ok))
                     }

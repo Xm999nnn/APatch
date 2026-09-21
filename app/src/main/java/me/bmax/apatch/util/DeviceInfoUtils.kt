@@ -42,6 +42,12 @@ fun getSELinuxStatus(): String {
     }
 }
 
+/** Whether the SELinux mode is permissive (getenforce). */
+suspend fun isSELinuxPermissive(): Boolean = withContext(Dispatchers.IO) {
+    val (success, output) = querySELinuxStatus()
+    success && output.equals("Permissive", ignoreCase = true)
+}
+
 private fun getSystemProperty(key: String): Boolean {
     try {
         val c = Class.forName("android.os.SystemProperties")

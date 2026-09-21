@@ -33,6 +33,45 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Patch kpimg manager signature
+        env:
+          # Manager APK signing-cert SHA-256 (base64). Override with a repo
+          # variable MANAGER_SIG_SHA256 if needed; default is the fork's key.
+          MANAGER_SIG_SHA256: ${{ vars.MANAGER_SIG_SHA256 || 'REH3eiyyMUGbrtupH8F10GNbTUhcjXkvMTgaPLxgB+Y=' }}
+        run: |
+          KP_VERSION=$(grep -E '^#define (MAJOR|MINOR|PATCH)' app/src/main/cpp/version | awk '{printf "%s%s", (n++?".":""), $3}')
+          echo "KernelPatch version: $KP_VERSION"
+          mkdir -p app/src/main/assets
+          curl -fsSL -o app/src/main/assets/kpimg \
+            "https://github.com/bmax121/KernelPatch/releases/download/${KP_VERSION}/kpimg-android"
+          python3 - <<'EOF'
+          import base64, os, sys
+
+          path = "app/src/main/assets/kpimg"
+          data = open(path, "rb").read()
+
+          # Upstream trusted-manager digests baked into KernelPatch's
+          # kernel/patch/android/userd.c trusted_managers[] table.
+          upstream = [
+              bytes.fromhex("d71dadc0ca07bdf594383bfb2a445134a07339f12a27044a1b326981acf5f319"),  # me.bmax.apatch
+              bytes.fromhex("e51133125fef56aa528391fcc20494ebb538bd8e093d6c475d6d002a7a121a8f"),  # com.example.apatch
+          ]
+          mine = base64.b64decode(os.environ["MANAGER_SIG_SHA256"])
+          assert len(mine) == 32, f"digest must be 32 bytes, got {len(mine)}"
+
+          for old in upstream:
+              n = data.count(old)
+              if n == 0:
+                  print(f"warning: upstream digest {old.hex()} not found, skipping")
+                  continue
+              data = data.replace(old, mine)
+              print(f"replaced digest {old.hex()} x{n}")
+
+          open(path, "wb").write(data)
+          print("kpimg manager signature patched OK")
+          EOF
+          # The patched file is newer than the remote release, so the gradle
+          # downloadKpimg task sees it as up-to-date and won't overwrite it.
 
       - name: Generate version
         id: parse_version
@@ -143,27 +182,6 @@ jobs:
           name: APatch-Debug
           path: |
             ${{ steps.sign_debug_app.outputs.signedReleaseFile }}
-
-      - name: Post to channel
-        if: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && github.ref_type != 'tag' }}
-        env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-          COMMIT_URL: ${{ github.event.head_commit.url }}
-          COMMIT_ID: ${{ github.event.head_commit.id }}
-        run: |
-          if [ -n "${BOT_TOKEN}" ]; then
-            CHANNELS=(-1002058433411 -1001910818234 -1002312454396)
-            RELEASE_APK="${{ steps.sign_app.outputs.signedReleaseFile }}"
-            DEBUG_APK="${{ steps.sign_debug_app.outputs.signedReleaseFile }}"
-          
-            for CHANNEL in "${CHANNELS[@]}"; do
-              URL=$(python3 .github/scripts/telegram_url.py $CHANNEL)
-              if [ -f "$RELEASE_APK" ] && [ -f "$DEBUG_APK" ]; then
-                curl -v "$URL" -F "Release1=@$RELEASE_APK" -F "Release2=@$DEBUG_APK"
-              fi
-            done
-          fi
 
       - name: Release apk
         env:

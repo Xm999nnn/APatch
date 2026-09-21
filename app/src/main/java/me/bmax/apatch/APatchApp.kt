@@ -1,11 +1,14 @@
 package me.bmax.apatch
 
+import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Build
+import android.os.Bundle
 import android.util.Log
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.core.content.edit
 import androidx.lifecycle.LiveData
@@ -60,9 +63,6 @@ class APApplication : Application(), Thread.UncaughtExceptionHandler {
         private const val NEED_REBOOT_FILE = "/dev/.need_reboot"
         const val GLOBAL_NAMESPACE_FILE = "/data/adb/.global_namespace_enable"
         const val SUCOMPAT_FILE = "/data/adb/ap/sucompat"
-        const val SELINUX_HIDE_FILE = APATCH_FOLDER + "selinux_hide"
-        const val JAILBREAK_FILE = APATCH_FOLDER + "jailbreak"
-        const val JAILBREAK_KO_PATH = APATCH_FOLDER + "kernelpatch.ko"
         /** Persisted, file-backed KPMs. Each module lives in <id>/<id>.kpm. */
         const val KPMS_DIR = APATCH_FOLDER + "kpm/"
 
@@ -79,6 +79,7 @@ class APApplication : Application(), Thread.UncaughtExceptionHandler {
         private const val LEGACY_SU_PATH = "/system/bin/su"
 
         const val SP_NAME = "config"
+        const val PREF_DISABLE_SCREENSHOT = "disable_screenshot"
         private const val SHOW_BACKUP_WARN = "show_backup_warning"
         lateinit var sharedPreferences: SharedPreferences
 
@@ -283,12 +284,6 @@ class APApplication : Application(), Thread.UncaughtExceptionHandler {
 
     override fun onCreate() {
         super.onCreate()
-        // The app-zygote for the jailbreak MagicaService runs without a UserManager,
-        // so shared prefs and other context-dependent setup are unavailable there.
-        // AppZygotePreload drives the jailbreak via JNI directly; skip init here.
-        if (getSystemService(Context.USER_SERVICE) == null) {
-            return
-        }
         apApp = this
 
         val isArm64 = Build.SUPPORTED_ABIS.any { it == "arm64-v8a" }
@@ -303,6 +298,30 @@ class APApplication : Application(), Thread.UncaughtExceptionHandler {
         // TODO: 1. make me root by kernel
         // TODO: 2. remove all usage of superkey
         sharedPreferences = getSharedPreferences(SP_NAME, Context.MODE_PRIVATE)
+
+        // Global "disable screenshots" (FLAG_SECURE) applied to every activity,
+        // controlled by the toggle in Settings.
+        registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
+            override fun onActivityStarted(activity: Activity) {
+                val secure = sharedPreferences.getBoolean(PREF_DISABLE_SCREENSHOT, false)
+                if (secure) {
+                    activity.window.setFlags(
+                        WindowManager.LayoutParams.FLAG_SECURE,
+                        WindowManager.LayoutParams.FLAG_SECURE
+                    )
+                } else {
+                    activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+                }
+            }
+
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+            override fun onActivityResumed(activity: Activity) {}
+            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivityStopped(activity: Activity) {}
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+            override fun onActivityDestroyed(activity: Activity) {}
+        })
+
         superKey = resolveSuperKey()
 
         okhttpClient =

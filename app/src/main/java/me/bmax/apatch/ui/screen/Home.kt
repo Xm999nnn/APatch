@@ -2,7 +2,6 @@ package me.bmax.apatch.ui.screen
 
 import android.os.Build
 import android.system.Os
-import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -38,6 +37,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.InstallMobile
 import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
@@ -68,7 +68,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -98,12 +97,10 @@ import me.bmax.apatch.util.Version
 import me.bmax.apatch.util.Version.getManagerVersion
 import me.bmax.apatch.util.checkNewVersion
 import me.bmax.apatch.util.getSELinuxStatus
-import me.bmax.apatch.util.installJailbreak
-import me.bmax.apatch.util.isJailbreakMode
 import me.bmax.apatch.util.isSELinuxPermissive
 import me.bmax.apatch.util.migrateStockBootBackup
 import me.bmax.apatch.util.reboot
-import me.bmax.apatch.util.softReboot
+import me.bmax.apatch.util.rootShellForResult
 import me.bmax.apatch.util.ui.APDialogBlurBehindUtils
 
 private val managerVersion = getManagerVersion()
@@ -118,6 +115,36 @@ fun HomeScreen(navigator: DestinationsNavigator) {
     // install; see migrateStockBootBackup.
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) { migrateStockBootBackup() }
+    }
+
+    // Detect SELinux permissive mode on startup and offer to switch to enforcing.
+    val isPermissive by produceState(initialValue = false) {
+        value = withContext(Dispatchers.IO) { isSELinuxPermissive() }
+    }
+    var permissivePromptDismissed by rememberSaveable { mutableStateOf(false) }
+    val permissiveScope = rememberCoroutineScope()
+
+    if (isPermissive && !permissivePromptDismissed) {
+        AlertDialog(
+            onDismissRequest = { permissivePromptDismissed = true },
+            title = { Text(stringResource(R.string.selinux_permissive_dialog_title)) },
+            text = { Text(stringResource(R.string.selinux_permissive_dialog_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    permissivePromptDismissed = true
+                    permissiveScope.launch {
+                        withContext(Dispatchers.IO) { rootShellForResult("setenforce 1") }
+                    }
+                }) {
+                    Text(stringResource(R.string.selinux_set_enforcing))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { permissivePromptDismissed = true }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            }
+        )
     }
 
     Scaffold(topBar = {
@@ -277,7 +304,6 @@ private fun TopBar(
                         showDropdownReboot = false
                     }) {
                         RebootDropdownItem(id = R.string.reboot)
-                        RebootDropdownItem(id = R.string.reboot_soft, reason = "soft_reboot")
                         RebootDropdownItem(id = R.string.reboot_recovery, reason = "recovery")
                         RebootDropdownItem(id = R.string.reboot_bootloader, reason = "bootloader")
                         // Download/EDL drop the device into flashing modes that look dead
@@ -340,23 +366,9 @@ private fun KStatusCard(
         UninstallDialog(showDialog = showUninstallDialog, navigator)
     }
 
-    // Jailbreak button appears when the kernel is not installed and SELinux is permissive.
-    val isPermissive by produceState(initialValue = false) {
-        value = withContext(Dispatchers.IO) { isSELinuxPermissive() }
-    }
-    // Jailbreak mode is active when the KernelPatch module has been loaded on a
-    // stock kernel (a marker is written by apd late-load).
-    val isJailbreak by produceState(initialValue = false) {
-        value = withContext(Dispatchers.IO) { isJailbreakMode() }
-    }
     val scope = rememberCoroutineScope()
-    val context = LocalContext.current
-    val jailbreakFailedMsg = stringResource(R.string.settings_jailbreak_failed)
-    val jailbreakTriggeredMsg = stringResource(R.string.jailbreak_triggered)
 
     val cardBackgroundColor = when {
-        isJailbreak -> MaterialTheme.colorScheme.tertiaryContainer
-
         kpState == APApplication.State.KERNELPATCH_INSTALLED -> {
             MaterialTheme.colorScheme.primary
         }
@@ -402,10 +414,6 @@ private fun KStatusCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 when {
-                    isJailbreak -> {
-                        Icon(Icons.Filled.LockOpen, stringResource(R.string.settings_jailbreak_mode))
-                    }
-
                     kpState == APApplication.State.KERNELPATCH_INSTALLED -> {
                         Icon(Icons.Filled.CheckCircle, stringResource(R.string.home_working))
                     }
@@ -424,18 +432,6 @@ private fun KStatusCard(
                         .padding(start = 16.dp, end = 1.dp)
                 ) {
                     when {
-                        isJailbreak -> {
-                            Text(
-                                text = stringResource(R.string.settings_jailbreak_mode),
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                text = stringResource(R.string.settings_jailbreak_mode_summary),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-
                         kpState == APApplication.State.KERNELPATCH_INSTALLED -> {
                             Text(
                                 text = stringResource(R.string.home_working),
@@ -469,7 +465,7 @@ private fun KStatusCard(
                             )
                         }
                     }
-                    if (!isJailbreak && kpState != APApplication.State.UNKNOWN_STATE && kpState != APApplication.State.KERNELPATCH_NEED_UPDATE && kpState != APApplication.State.KERNELPATCH_NEED_REBOOT) {
+                    if (kpState != APApplication.State.UNKNOWN_STATE && kpState != APApplication.State.KERNELPATCH_NEED_UPDATE && kpState != APApplication.State.KERNELPATCH_NEED_REBOOT) {
                         Spacer(Modifier.height(4.dp))
                         Text(
                             text = "${Version.installedKPVString()} (${managerVersion.second}) - " + if (apState != APApplication.State.ANDROIDPATCH_NOT_INSTALLED) "Full" else "KernelPatch",
@@ -483,10 +479,6 @@ private fun KStatusCard(
                 ) {
                     Button(onClick = {
                         when {
-                            isJailbreak -> {
-                                softReboot()
-                            }
-
                             kpState == APApplication.State.UNKNOWN_STATE -> {
                                 navigator.navigate(InstallModeSelectScreenDestination)
                             }
@@ -518,10 +510,6 @@ private fun KStatusCard(
                         }
                     }, content = {
                         when {
-                            isJailbreak -> {
-                                Text(text = stringResource(id = R.string.reboot_soft))
-                            }
-
                             kpState == APApplication.State.UNKNOWN_STATE -> {
                                 Text(text = stringResource(id = R.string.home_ap_cando_install))
                             }
@@ -543,24 +531,6 @@ private fun KStatusCard(
                             }
                         }
                     })
-
-                    if (kpState == APApplication.State.UNKNOWN_STATE && isPermissive) {
-                        Spacer(Modifier.height(8.dp))
-                        Button(onClick = {
-                            scope.launch {
-                                val success = installJailbreak()
-                                if (success) {
-                                    Toast.makeText(context, jailbreakTriggeredMsg, Toast.LENGTH_SHORT)
-                                        .show()
-                                } else {
-                                    Toast.makeText(context, jailbreakFailedMsg, Toast.LENGTH_SHORT)
-                                        .show()
-                                }
-                            }
-                        }, content = {
-                            Text(stringResource(R.string.jailbreak))
-                        })
-                    }
                 }
             }
         }

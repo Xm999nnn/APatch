@@ -23,7 +23,13 @@
     public static void throw*(...);
 }
 
--repackageclasses
+-dontobfuscate
 -allowaccessmodification
--overloadaggressively
+-keepattributes !SourceFile,!LineNumberTable
 -renamesourcefileattribute SourceFile
+
+-assumenosideeffects class android.util.Log {
+    public static *** d(...);
+    public static *** v(...);
+    public static *** i(...);
+}

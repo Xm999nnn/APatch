@@ -23,7 +23,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -37,18 +36,13 @@ import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.annotation.RootGraph
 import com.ramcosta.composedestinations.generated.destinations.PatchesDestination
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import me.bmax.apatch.R
-import me.bmax.apatch.ui.component.WarningCard
 import me.bmax.apatch.ui.component.rememberConfirmDialog
 import me.bmax.apatch.ui.viewmodel.PatchesViewModel
 import me.bmax.apatch.util.isABDevice
-import me.bmax.apatch.util.isJailbreakMode
 import me.bmax.apatch.util.rootAvailable
 
 // Hand-off channel from this screen to the Patches screen; a plain var would not
-// notify the LaunchedEffect consuming it there.
 var selectedBootImage by mutableStateOf<Uri?>(null)
 
 @Destination<RootGraph>
@@ -102,10 +96,6 @@ private fun SelectInstallMethod(
 ) {
     val rootAvailable = rootAvailable()
     val isAbDevice = isABDevice()
-    var jailbreakBlocked by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        jailbreakBlocked = withContext(Dispatchers.IO) { isJailbreakMode() }
-    }
 
     val radioOptions =
         mutableListOf<InstallMethod>(InstallMethod.SelectFile())
@@ -164,14 +154,6 @@ private fun SelectInstallMethod(
     }
 
     Column {
-        if (jailbreakBlocked) {
-            Box(Modifier.padding(12.dp)) {
-                WarningCard(
-                    message = stringResource(R.string.jailbreak_no_patch),
-                    color = MaterialTheme.colorScheme.outlineVariant,
-                )
-            }
-        }
         if (!rootAvailable) {
             Box(Modifier.padding(12.dp)) {
                 WarningCard(
@@ -180,8 +162,7 @@ private fun SelectInstallMethod(
                 )
             }
         }
-        if (!jailbreakBlocked) {
-            radioOptions.forEach { option ->
+        radioOptions.forEach { option ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -209,7 +190,6 @@ private fun SelectInstallMethod(
                     }
                 }
             }
-        }
         }
     }
 }
