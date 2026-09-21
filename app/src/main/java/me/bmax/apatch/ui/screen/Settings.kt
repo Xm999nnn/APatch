@@ -40,7 +40,6 @@ import androidx.compose.material.icons.filled.NoPhotography
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Translate
-import androidx.compose.material.icons.filled.Update
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
@@ -275,23 +274,6 @@ fun SettingScreen() {
                     putBoolean(APApplication.PREF_DISABLE_SCREENSHOT, it)
                 }
                 disableScreenshot = it
-            }
-
-            // Check Update
-            var checkUpdate by rememberSaveable {
-                mutableStateOf(
-                    prefs.getBoolean("check_update", true)
-                )
-            }
-
-            SwitchItem(
-                icon = Icons.Filled.Update,
-                title = stringResource(id = R.string.settings_check_update),
-                summary = stringResource(id = R.string.settings_check_update_summary),
-                checked = checkUpdate
-            ) {
-                prefs.edit { putBoolean("check_update", it) }
-                checkUpdate = it
             }
 
             // Night Mode Follow System
