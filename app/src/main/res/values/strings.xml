@@ -122,7 +122,7 @@
     <string name="selinux_set_enforcing">Set enforcing</string>
 
     <string name="settings_disable_screenshot">Disable screenshots</string>
-    <string name="settings_disable_screenshot_summary">Prevent this app\'s screens from being captured or shown in the recents overview</string>
+    <string name="settings_disable_screenshot_summary">Prevent this app\'s screens from being captured</string>
 
     <string name="home_device_info">Device</string>
     <string name="home_system_version">System version</string>

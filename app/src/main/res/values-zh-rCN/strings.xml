@@ -61,7 +61,7 @@
     <string name="selinux_set_enforcing">切换为强制模式</string>
 
     <string name="settings_disable_screenshot">禁止截屏</string>
-    <string name="settings_disable_screenshot_summary">禁止截取本应用界面，并在最近任务预览中隐藏内容</string>
+    <string name="settings_disable_screenshot_summary">禁止截取本应用界面</string>
     <string name="kpm_author">作者</string>
     <string name="kpm_load_toast_failed">加载失败</string>
     <string name="kpm_unload">卸载</string>
