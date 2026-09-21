@@ -164,24 +164,25 @@ jobs:
           path: "app/build/outputs/mapping/release/"
 
       - name: Upload build artifact1
-        env:
-          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-        if: ${{ env.SIGNING_KEY != '' }}
         uses: actions/upload-artifact@v7
         with:
           name: APatch-Release
+          # With SIGNING_KEY configured, sign_v2_only.sh drops a *-signed.apk
+          # next to the build output; prefer it. Without it, upload the APK
+          # signed with the fallback debug key produced by apksign.
           path: |
-            ${{ steps.sign_app.outputs.signedReleaseFile }}
+            app/build/outputs/apk/release/*-signed.apk
+            app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
 
       - name: Upload build artifact2
-        env:
-          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-        if: ${{ env.SIGNING_KEY != '' }}
         uses: actions/upload-artifact@v7
         with:
           name: APatch-Debug
           path: |
-            ${{ steps.sign_debug_app.outputs.signedReleaseFile }}
+            app/build/outputs/apk/debug/*-signed.apk
+            app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
 
       - name: Release apk
         env:
