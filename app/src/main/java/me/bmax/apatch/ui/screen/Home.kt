@@ -384,7 +384,7 @@ private fun KStatusCard(
 
     ElevatedCard(
         onClick = {
-            if (!isJailbreak && kpState != APApplication.State.KERNELPATCH_INSTALLED) {
+            if (kpState != APApplication.State.KERNELPATCH_INSTALLED) {
                 navigator.navigate(InstallModeSelectScreenDestination)
             }
         },
@@ -399,7 +399,7 @@ private fun KStatusCard(
                 .padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (!isJailbreak && kpState == APApplication.State.KERNELPATCH_NEED_UPDATE) {
+            if (kpState == APApplication.State.KERNELPATCH_NEED_UPDATE) {
                 Row {
                     Text(
                         text = stringResource(R.string.kernel_patch),
