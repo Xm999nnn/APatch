@@ -48,7 +48,7 @@ jobs:
         - language: c-cpp
           build-mode: none
         - language: java-kotlin
-          build-mode: autobuild
+          build-mode: manual
         - language: rust
           build-mode: none
         # CodeQL supports the following values keywords for 'language': 'actions', 'c-cpp', 'csharp', 'go', 'java-kotlin', 'javascript-typescript', 'python', 'ruby', 'rust', 'swift'
@@ -82,22 +82,43 @@ jobs:
         # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
         # queries: security-extended,security-and-quality
 
-    # If the analyze step fails for one of the languages you are analyzing with
-    # "We were unable to automatically build your code", modify the matrix above
-    # to set the build mode to "manual" for that language. Then modify this step
-    # to build your code.
-    # ℹ️ Command-line programs to run using the OS shell.
-    # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
-    - name: Run manual build steps
+    # java-kotlin uses build-mode: manual (see matrix above). Autobuild only
+    # runs `./gradlew clean`, but the root `clean` task depends on
+    # apdClean -> cargoClean (`cargo` is absent on the CodeQL runner), and AGP 9
+    # needs JDK 21 + the Android SDK prepared the same way build.yml does. The
+    # steps below replicate build.yml's environment and build only the
+    # Java/Kotlin part of the app under the CodeQL tracer.
+    - name: Setup Java
+      if: matrix.build-mode == 'manual'
+      uses: actions/setup-java@v5
+      with:
+        distribution: jetbrains
+        java-version: 21
+
+    - name: Setup Gradle
+      if: matrix.build-mode == 'manual'
+      uses: gradle/actions/setup-gradle@v6
+
+    - name: Setup Android SDK
+      if: matrix.build-mode == 'manual'
+      uses: android-actions/setup-android@v4
+      with:
+        packages: ''
+
+    - name: Build with Gradle
       if: matrix.build-mode == 'manual'
       shell: bash
       run: |
-        echo 'If you are using a "manual" build mode for one or more of the' \
-          'languages you are analyzing, replace this with the commands to build' \
-          'your code, for example:'
-        echo '  make bootstrap'
-        echo '  make release'
-        exit 1
+        echo 'org.gradle.parallel=true' >> gradle.properties
+        echo 'org.gradle.jvmargs=-Xmx2048m' >> gradle.properties
+        # The configuration cache conflicts with the CodeQL init-script.
+        sed -i 's/org.gradle.configuration-cache=true//g' gradle.properties
+        # Java/Kotlin extraction only: skip the Rust helper build (analyzed by
+        # the dedicated rust job) and the native/CMake build (analyzed by the
+        # dedicated c-cpp job). KSP + Kotlin compile fully under the CodeQL
+        # tracer, which is what the java-kotlin database needs.
+        ./gradlew --no-daemon assembleDebug \
+          -x buildApd -x cargoBuild -x cargoClean -x apdClean
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v4
